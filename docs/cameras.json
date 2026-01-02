@@ -1,0 +1,31 @@
+[
+  {
+    "id": "cam-1",
+    "name": "入口",
+    "position": [0, -8, 10],
+    "description": "街景入口位置",
+    "isInitial": true,
+    "cameraDirection": [0, 0.3, -1]
+  },
+  {
+    "id": "cam-2", 
+    "name": "位置2",
+    "position": [-14.0, -8, 0],
+    "description": "位置2",
+    "cameraDirection": [-1, 0.1, 0]
+  },
+  {
+    "id": "cam-3",
+    "name": "位置3",
+    "position": [-3, 0, -50.0],
+    "description": "位置3",
+    "cameraDirection": [-0.1, 0.5, 1]
+  },
+  {
+    "id": "cam-4",
+    "name": "位置4",
+    "position": [4.0, -8, -80],
+    "description": "位置4",
+    "cameraDirection": [1, 0.1, 0]
+  }
+]

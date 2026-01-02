@@ -1,0 +1,20 @@
+[
+  {
+    "id": "poi-2",
+    "name": "陕西手工面",
+    "position": [-26.0, -8, 2],
+    "description": "陕西手工面店铺视角"
+  },
+  {
+    "id": "poi-3",
+    "name": "西丽366大街招牌",
+     "position": [-5, 0, 30],
+    "description": "西丽366大街招牌视角"
+  },
+  {
+    "id": "poi-4",
+    "name": "优品缘",
+    "position": [20.0, -8, -80],
+    "description": "称重快餐视角"
+  }
+]
