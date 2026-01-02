@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import * as THREE from 'three'
 import { SplatMesh } from '@sparkjsdev/spark'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { Joystick } from 'react-joystick-component'
 
 function SplatViewer() {
   const containerRef = useRef(null)
@@ -31,6 +32,7 @@ function SplatViewer() {
   const poiLabelsRef = useRef([])  // HTML 标签元素
   const animRef = useRef(null)
   const orientationHandlerRef = useRef(null)
+  const joystickRef = useRef({ x: 0, y: 0, isMoving: false })
   const rootRef = useRef(null)
 
   // 动画状态锁
@@ -183,6 +185,31 @@ function SplatViewer() {
 
       // 只有不在动画中时才更新 controls
       if (!isAnimatingRef.current && controls.enabled) {
+        controls.update()
+      }
+
+      // 虚拟摇杆移动逻辑
+      if (joystickRef.current.isMoving && !isAnimatingRef.current) {
+        const { x, y } = joystickRef.current
+        const speed = 0.3 // 移动速度
+
+        // 获取相机的前方方向（投影到XZ平面）
+        const forward = new THREE.Vector3()
+        camera.getWorldDirection(forward)
+        forward.y = 0
+        forward.normalize()
+
+        // 获取相机的右方方向
+        const right = new THREE.Vector3()
+        right.crossVectors(forward, camera.up).normalize()
+
+        // 计算移动向量 (y对应前进后退，x对应左右)
+        const move = new THREE.Vector3()
+        move.addScaledVector(forward, y * speed)
+        move.addScaledVector(right, x * speed)
+
+        camera.position.add(move)
+        controls.target.add(move)
         controls.update()
       }
 
@@ -405,7 +432,8 @@ function SplatViewer() {
     const renderer = rendererRef.current
     if (!renderer) return
 
-    const handleClick = () => {
+    // 修改：handleClick 接收事件对象，直接计算坐标
+    const handleClick = (event) => {
       // 动画过程中禁止点击
       if (isAnimatingRef.current) return
 
@@ -414,7 +442,29 @@ function SplatViewer() {
       const camera = cameraRef.current
       if (!camera) return
 
-      raycasterRef.current.setFromCamera(pointerRef.current, camera)
+      // --- 核心修复开始 ---
+      // 不使用 pointerRef.current，而是根据点击事件实时计算 NDC 坐标
+      // 这解决了 Safari 旋转后 pointerRef 坐标未及时更新或错位的问题
+      const rect = renderer.domElement.getBoundingClientRect()
+      
+      // 确保使用 touches 或 clientX (兼容移动端)
+      let clientX = event.clientX
+      let clientY = event.clientY
+      
+      // 理论上 click 事件总是有 clientX/Y，但如果是 touch 事件触发的某种变体，做个防守
+      if (clientX === undefined && event.changedTouches && event.changedTouches.length > 0) {
+        clientX = event.changedTouches[0].clientX
+        clientY = event.changedTouches[0].clientY
+      }
+
+      const x = (clientX - rect.left) / rect.width
+      const y = (clientY - rect.top) / rect.height
+      
+      const clickPointer = new THREE.Vector2()
+      clickPointer.set(x * 2 - 1, -(y * 2 - 1))
+
+      raycasterRef.current.setFromCamera(clickPointer, camera)
+      // --- 核心修复结束 ---
 
       const allIconMeshes = []
       poiObjectsRef.current.forEach(group => {
@@ -857,6 +907,36 @@ const handler = (event) => {
             `}</style>
           </div>
         )}
+
+        {/* 虚拟摇杆 */}
+        <div style={{
+          position: 'absolute',
+          left: 30,
+          bottom: 30,
+          zIndex: 100,
+        }}>
+          <Joystick
+            size={150}
+            sticky={false}
+            baseColor="rgba(255, 255, 255, 0.3)"
+            stickColor="rgba(255, 255, 255, 0.8)"
+            move={(e) => {
+              joystickRef.current = {
+                x: e.x,
+                y: e.y,
+                isMoving: true
+              }
+            }}
+            stop={() => {
+              joystickRef.current = {
+                x: 0,
+                y: 0,
+                isMoving: false
+              }
+            }}
+          />
+        </div>
+
         <div
           style={{
             position: 'absolute',
@@ -971,44 +1051,6 @@ const handler = (event) => {
             </button>
           )}
 
-          {/* 
-          <div style={{ fontSize: 14, fontWeight: 'bold', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: 10 }}>
-            场景偏移
-          </div>
-          {['X', 'Y', 'Z'].map((axis, index) => (
-            <div key={axis} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 12, width: 20 }}>{axis}:</span>
-              <input
-                type="range"
-                min="-10"
-                max="10"
-                step="0.1"
-                value={splatOffset[index]}
-                onChange={(e) => {
-                  const newOffset = [...splatOffset]
-                  newOffset[index] = parseFloat(e.target.value)
-                  setSplatOffset(newOffset)
-                }}
-                style={{ flex: 1, cursor: 'pointer' }}
-              />
-              <span style={{ fontSize: 11, width: 35, textAlign: 'right' }}>{splatOffset[index].toFixed(1)}</span>
-            </div>
-          ))}
-          <button
-            onClick={() => setSplatOffset([0, 0, 0])}
-            style={{
-              padding: '6px 10px',
-              fontSize: 12,
-              background: 'rgba(255, 255, 255, 0.2)',
-              border: 'none',
-              borderRadius: 4,
-              color: '#fff',
-              cursor: 'pointer'
-            }}
-          >
-            重置偏移
-          </button>
-3DGS场景偏移控制 */}
           <div style={{ fontSize: 12, opacity: 0.7, marginTop: 'auto', textAlign: 'center' }}>
             {orientationActive ? '🔄 陀螺仪已启用' : (activeCamera ? `📍 ${activeCamera.name}` : '选择镜头位置')}
           </div>

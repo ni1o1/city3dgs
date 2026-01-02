@@ -13,6 +13,7 @@
     "@sparkjsdev/spark": "^0.1.10",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-joystick-component": "^6.2.1",
     "three": "^0.182.0"
   },
   "devDependencies": {

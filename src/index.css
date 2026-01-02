@@ -26,6 +26,8 @@ html, body, #root {
   height: 100%;
   background: #000000;
   overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 h1 {
