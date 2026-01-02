@@ -971,7 +971,7 @@ const handler = (event) => {
             </button>
           )}
 
-          {/* 3DGS场景偏移控制 */}
+          {/* 
           <div style={{ fontSize: 14, fontWeight: 'bold', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: 10 }}>
             场景偏移
           </div>
@@ -1008,7 +1008,7 @@ const handler = (event) => {
           >
             重置偏移
           </button>
-
+3DGS场景偏移控制 */}
           <div style={{ fontSize: 12, opacity: 0.7, marginTop: 'auto', textAlign: 'center' }}>
             {orientationActive ? '🔄 陀螺仪已启用' : (activeCamera ? `📍 ${activeCamera.name}` : '选择镜头位置')}
           </div>
