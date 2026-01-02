@@ -294,11 +294,11 @@ function SplatViewer() {
         root.add(mesh)
       }
       try {
-        await tryLoad('/scene.sog')
+        await tryLoad('./scene.sog')
         setLoading(false)
       } catch {
         try {
-          await tryLoad('/scene.ply')
+          await tryLoad('./scene.ply')
           setLoading(false)
         } catch {
           setError('场景加载失败')
@@ -309,7 +309,7 @@ function SplatViewer() {
 
     ;(async () => {
       try {
-        const res = await fetch('/pois.json')
+        const res = await fetch('./pois.json')
         if (res.ok) {
           const data = await res.json()
           setPois(Array.isArray(data) ? data : [])
@@ -319,7 +319,7 @@ function SplatViewer() {
 
     ;(async () => {
       try {
-        const res = await fetch('/cameras.json')
+        const res = await fetch('./cameras.json')
         if (res.ok) {
           const data = await res.json()
           setCameras(Array.isArray(data) ? data : [])
@@ -662,10 +662,10 @@ function SplatViewer() {
       
       // 获取设备方向数据
       let alpha = event.alpha || 0  // Z轴旋转 (0-360)，指南针方向
-      let beta = event.beta || 0    // X轴旋转 (-180 to 180)，前后倾斜
-      let gamma = event.gamma || 0  // Y轴旋转 (-90 to 90)，左右倾斜
+      let beta = event.beta || 0    // X轴旋转 (-180 to 180)，手机竖起程度
+      let gamma = event.gamma || 0  // Y轴旋转 (-90 to 90)，上下看
       
-      // 记录初始方向用于校准
+      // 记录初始 alpha 用于校准左右方向
       if (initialAlpha === null) {
         initialAlpha = alpha
       }
@@ -673,32 +673,52 @@ function SplatViewer() {
       // 相对于初始方向的偏移
       const relativeAlpha = alpha - initialAlpha
       
-      // 转换为弧度
-      const alphaRad = THREE.MathUtils.degToRad(relativeAlpha)
-      const betaRad = THREE.MathUtils.degToRad(beta)
-      const gammaRad = THREE.MathUtils.degToRad(gamma)
-      
-      // 横屏向左模式的方向映射：
-      // 手机状态：屏幕朝向用户，顶部朝左
-      // gamma = -90 时手机水平，应该平视前方
+      // 用户描述的坐标系（横屏向左，alpha=90, beta=0, gamma=-90 时平视前方）：
       // 
-      // 期望行为：
-      // - 手机左右转（alpha 变化）-> 相机左右看（绕 Y 轴）
-      // - 手机上下抬（beta 变化）-> 相机上下看（绕 X 轴）
-      // - 手机自身旋转（gamma 变化）-> 影响俯仰
+      // 左右看 (yaw)：
+      //   alpha = 90 → 平视前方 (yaw = 0)
+      //   alpha 减少 → 向右看 (yaw 增加)
+      //   所以 yaw = -(alpha - 90) = 90 - alpha
+      //   用相对值：yaw = -relativeAlpha
+      //
+      // 上下看 (pitch)：
+      //   gamma = -90 → 平视 (pitch = 0)
+      //   gamma 从 -90 减少到 0 → 往上看 (pitch 从 0 到 +90°)
+      //   往下看时 gamma 从 -90 跳变到 +90，然后减少到 0 → 纯往下是 gamma=0（从+90侧）
+      //   
+      //   简化处理：
+      //   gamma = -90 → pitch = 0
+      //   gamma = 0 (从-90减少来) → pitch = +90° (看天)
+      //   gamma = 0 (从+90减少来) → pitch = -90° (看地)
+      //   gamma = +90 → pitch = 0 (刚跳变，即将往下)
+      //
+      // beta：手机竖起程度，0 或 ±180 是横屏，90 是竖屏
+      //   暂不处理，保持横屏使用
       
-      // 构建相机旋转
-      // 横屏向左时，gamma=-90 是基准位置（平视）
-      // pitch（俯仰）= gamma + 90度，gamma=-90时pitch=0
-      // yaw（左右）= alpha
-      // roll（滚转）= beta
+      // 计算 pitch（上下看）
+      let pitch = 0
+      if (gamma <= 0) {
+        // gamma: -90 到 0，对应平视到看天
+        // gamma = -90 → pitch = 0
+        // gamma = 0 → pitch = +90° (π/2)
+        pitch = (gamma + 90) * (Math.PI / 180)
+      } else {
+        // gamma: +90 到 0（往下看）
+        // gamma = +90 → pitch = 0（刚从 -90 跳过来）
+        // gamma = 0 → pitch = -90° (-π/2)（纯往下看）
+        pitch = (gamma - 90) * (Math.PI / 180)
+      }
       
-      const pitch = gammaRad + Math.PI / 2  // 上下看：gamma 从 -90 调整
-      const yaw = alphaRad                   // 左右看：alpha（需要反向）
-      const roll = -betaRad                  // 滚转：beta
+      // 计算 yaw（左右看）
+      // relativeAlpha = 0 时平视，减少时向右看
+      // alpha 减少 → yaw 应该增加（向右）
+      const yaw = -THREE.MathUtils.degToRad(relativeAlpha)
       
-      // 使用 Euler 角，YXZ 顺序适合 FPS 类相机
-      const euler = new THREE.Euler(pitch, -yaw, roll, 'YXZ')
+      // roll 保持 0，画面水平
+      const roll = 0
+      
+      // 使用 Euler 角，YXZ 顺序
+      const euler = new THREE.Euler(pitch, yaw, roll, 'YXZ')
       camera.quaternion.setFromEuler(euler)
       
       // 保持相机位置不变
