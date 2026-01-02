@@ -23,6 +23,7 @@ function SplatViewer() {
   const [activePoi, setActivePoi] = useState(null)
   const [activeCamera, setActiveCamera] = useState(null)
   const [sceneScale, setSceneScale] = useState(50)
+  const [splatOffset, setSplatOffset] = useState([-0.1, -0.18, -0.1])  // 3DGS场景偏移 [x, y, z]
   const [isMobile, setIsMobile] = useState(false)
   const [isLandscape, setIsLandscape] = useState(true)
   const [showPoiIcons, setShowPoiIcons] = useState(true)
@@ -123,8 +124,10 @@ function SplatViewer() {
         controls.update()
         controls.enableDamping = true
 
-        // 恢复交互
-        controls.enabled = true
+        // 恢复交互（但如果陀螺仪模式开启，则保持 controls 禁用）
+        if (!orientationHandlerRef.current) {
+          controls.enabled = true
+        }
         isAnimatingRef.current = false
       }
     }
@@ -247,6 +250,22 @@ function SplatViewer() {
       container.style.height = `${h}px`
     }
 
+    // 更可靠的横屏检测函数
+    const checkIsLandscape = () => {
+      // 优先使用 screen.orientation API (更可靠)
+      if (screen.orientation && screen.orientation.type) {
+        return screen.orientation.type.includes('landscape')
+      }
+      // 其次使用 window.orientation (iOS 兼容)
+      if (typeof window.orientation === 'number') {
+        return Math.abs(window.orientation) === 90
+      }
+      // 最后使用尺寸比较
+      const w = window.visualViewport?.width ?? window.innerWidth
+      const h = window.visualViewport?.height ?? window.innerHeight
+      return w > h
+    }
+
     const onResize = () => {
       fitContainer()
       const w = container.clientWidth
@@ -255,22 +274,36 @@ function SplatViewer() {
       camera.aspect = w / h
       camera.updateProjectionMatrix()
       setIsMobile(window.innerWidth <= 900 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent))
-      const mq = typeof window.matchMedia === 'function' ? window.matchMedia('(orientation: landscape)') : null
-      setIsLandscape(mq ? mq.matches : window.innerWidth >= window.innerHeight)
+      setIsLandscape(checkIsLandscape())
     }
     window.addEventListener('resize', onResize)
     setIsMobile(window.innerWidth <= 900 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent))
-    const mq0 = typeof window.matchMedia === 'function' ? window.matchMedia('(orientation: landscape)') : null
-    setIsLandscape(mq0 ? mq0.matches : window.innerWidth >= window.innerHeight)
+    setIsLandscape(checkIsLandscape())
     fitContainer()
     onResize()
+
+    // 监听屏幕方向变化 - 使用多次延迟检测确保状态正确
     const onOrientation = () => {
-      setTimeout(() => {
-        fitContainer()
-        onResize()
-      }, 120)
+      // 立即检测一次
+      setIsLandscape(checkIsLandscape())
+      fitContainer()
+      onResize()
+      // iOS 需要额外延迟检测
+      const delays = [100, 200, 350, 500]
+      delays.forEach(delay => {
+        setTimeout(() => {
+          setIsLandscape(checkIsLandscape())
+          fitContainer()
+          onResize()
+        }, delay)
+      })
     }
     window.addEventListener('orientationchange', onOrientation)
+    
+    // 使用 screen.orientation API (如果支持)
+    if (screen.orientation) {
+      screen.orientation.addEventListener('change', onOrientation)
+    }
     const onVVResize = () => {
       fitContainer()
       onResize()
@@ -352,6 +385,9 @@ function SplatViewer() {
 
       window.removeEventListener('resize', onResize)
       window.removeEventListener('orientationchange', onOrientation)
+      if (screen.orientation) {
+        screen.orientation.removeEventListener('change', onOrientation)
+      }
       if (window.visualViewport) window.visualViewport.removeEventListener('resize', onVVResize)
       renderer.domElement.removeEventListener('pointermove', handlePointerMove)
       if (orientationHandlerRef.current) {
@@ -552,6 +588,12 @@ function SplatViewer() {
     if (!rootRef.current) return
     rootRef.current.scale.set(sceneScale, sceneScale, sceneScale)
   }, [sceneScale])
+
+  // 应用3DGS场景偏移（只偏移SplatMesh，不影响POI和相机）
+  useEffect(() => {
+    if (!splatRef.current) return
+    splatRef.current.position.set(splatOffset[0], splatOffset[1], splatOffset[2])
+  }, [splatOffset])
 
   const startAR = async () => {
     if (!arSupported || !rendererRef.current) return
@@ -928,6 +970,44 @@ const handler = (event) => {
               退出陀螺仪
             </button>
           )}
+
+          {/* 3DGS场景偏移控制 */}
+          <div style={{ fontSize: 14, fontWeight: 'bold', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: 10 }}>
+            场景偏移
+          </div>
+          {['X', 'Y', 'Z'].map((axis, index) => (
+            <div key={axis} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, width: 20 }}>{axis}:</span>
+              <input
+                type="range"
+                min="-10"
+                max="10"
+                step="0.1"
+                value={splatOffset[index]}
+                onChange={(e) => {
+                  const newOffset = [...splatOffset]
+                  newOffset[index] = parseFloat(e.target.value)
+                  setSplatOffset(newOffset)
+                }}
+                style={{ flex: 1, cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: 11, width: 35, textAlign: 'right' }}>{splatOffset[index].toFixed(1)}</span>
+            </div>
+          ))}
+          <button
+            onClick={() => setSplatOffset([0, 0, 0])}
+            style={{
+              padding: '6px 10px',
+              fontSize: 12,
+              background: 'rgba(255, 255, 255, 0.2)',
+              border: 'none',
+              borderRadius: 4,
+              color: '#fff',
+              cursor: 'pointer'
+            }}
+          >
+            重置偏移
+          </button>
 
           <div style={{ fontSize: 12, opacity: 0.7, marginTop: 'auto', textAlign: 'center' }}>
             {orientationActive ? '🔄 陀螺仪已启用' : (activeCamera ? `📍 ${activeCamera.name}` : '选择镜头位置')}
