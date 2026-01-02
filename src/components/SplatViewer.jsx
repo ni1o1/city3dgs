@@ -31,7 +31,7 @@ function SplatViewer() {
   const animRef = useRef(null)
   const orientationHandlerRef = useRef(null)
   const rootRef = useRef(null)
-  
+
   // 动画状态锁
   const isAnimatingRef = useRef(false)
   // 保存 activePoi 的 ref，避免闭包问题
@@ -45,10 +45,10 @@ function SplatViewer() {
   const generateCameraPosition = useCallback((poiPosition, cameraDirection) => {
     const [x, y, z] = poiPosition
     const [dx, dy, dz] = cameraDirection || [0, 0, -1]
-    const distance = 2.0 
+    const distance = 2.0
     const cameraPos = [
       x - dx * distance,
-      y - dy * distance + 0.5, 
+      y - dy * distance + 0.5,
       z - dz * distance
     ]
     return cameraPos
@@ -56,7 +56,7 @@ function SplatViewer() {
 
   const moveToCamera = useCallback((camera, instant = false) => {
     if (!camera || !cameraRef.current || !controlsRef.current) return
-    
+
     // 取消之前的动画
     if (animRef.current) {
       cancelAnimationFrame(animRef.current)
@@ -65,11 +65,11 @@ function SplatViewer() {
 
     const cam = cameraRef.current
     const controls = controlsRef.current
-    
+
     const cameraPos = generateCameraPosition(camera.position, camera.cameraDirection)
     const targetPosition = new THREE.Vector3(...cameraPos)
     const targetLookAt = new THREE.Vector3(...camera.position)
-    
+
     // 立即移动
     if (instant) {
       cam.position.copy(targetPosition)
@@ -81,15 +81,15 @@ function SplatViewer() {
       controls.enableDamping = true
       return
     }
-    
+
     // 1. 标记动画开始
     isAnimatingRef.current = true
     // 2. 完全禁用 controls
-    controls.enabled = false 
-    
+    controls.enabled = false
+
     const startPos = cam.position.clone()
     const startTarget = controls.target.clone()
-    
+
     const duration = 1200
     const t0 = performance.now()
 
@@ -97,7 +97,7 @@ function SplatViewer() {
       const t = performance.now()
       const elapsed = t - t0
       const k = Math.min(1, elapsed / duration)
-      
+
       // Smooth easing
       const ease = 1 - Math.pow(1 - k, 3)
 
@@ -105,24 +105,24 @@ function SplatViewer() {
       cam.position.lerpVectors(startPos, targetPosition, ease)
       controls.target.lerpVectors(startTarget, targetLookAt, ease)
       cam.lookAt(controls.target)
-      
+
       if (k < 1) {
         animRef.current = requestAnimationFrame(animate)
       } else {
         // 动画完成
         animRef.current = null
-        
+
         // 确保最终位置精确
         cam.position.copy(targetPosition)
         controls.target.copy(targetLookAt)
         cam.lookAt(controls.target)
-        
+
         // 关键：重置 OrbitControls 的内部状态
         // 临时禁用阻尼来强制同步
         controls.enableDamping = false
         controls.update()
         controls.enableDamping = true
-        
+
         // 恢复交互
         controls.enabled = true
         isAnimatingRef.current = false
@@ -177,12 +177,12 @@ function SplatViewer() {
     let stopped = false
     const render = () => {
       if (stopped) return
-      
+
       // 只有不在动画中时才更新 controls
       if (!isAnimatingRef.current && controls.enabled) {
         controls.update()
       }
-      
+
       // 更新 HTML 标签位置
       if (poiLabelsRef.current && poiObjectsRef.current) {
         poiObjectsRef.current.forEach((group, index) => {
@@ -193,10 +193,10 @@ function SplatViewer() {
             labelPos.copy(group.position)
             labelPos.y += 1.2  // 标签在 POI 上方
             labelPos.project(camera)
-            
+
             const x = (labelPos.x * 0.5 + 0.5) * container.clientWidth
             const y = (-labelPos.y * 0.5 + 0.5) * container.clientHeight
-            
+
             // 检查是否在相机前面
             if (labelPos.z < 1) {
               label.style.display = 'block'
@@ -208,7 +208,7 @@ function SplatViewer() {
           }
         })
       }
-      
+
       // POI图标动画
       const time = performance.now() * 0.001
       if (poiObjectsRef.current) {
@@ -217,11 +217,11 @@ function SplatViewer() {
             const breathe = Math.sin(time * 2 + index * 0.5) * 0.1 + 1
             group.userData.baseMesh.scale.setScalar(breathe)
             group.userData.coneMesh.scale.setScalar(breathe)
-            
+
             if (group.userData.glowMesh) {
               group.userData.glowMesh.rotation.z += 0.01
             }
-            
+
             const currentActivePoi = activePoiRef.current
             if (currentActivePoi?.id === group.userData.poi.id) {
               group.userData.baseMesh.material.opacity = 0.9 + Math.sin(time * 3) * 0.1
@@ -233,7 +233,7 @@ function SplatViewer() {
           }
         })
       }
-      
+
       renderer.render(scene, camera)
       requestAnimationFrame(render)
     }
@@ -285,58 +285,58 @@ function SplatViewer() {
     }
     renderer.domElement.addEventListener('pointermove', handlePointerMove)
 
-    ;(async () => {
-      setLoading(true)
-      const tryLoad = async (url) => {
-        const mesh = new SplatMesh({ url })
-        mesh.rotation.x = Math.PI
-        splatRef.current = mesh
-        root.add(mesh)
-      }
-      try {
-        await tryLoad('./scene.sog')
-        setLoading(false)
-      } catch {
+      ; (async () => {
+        setLoading(true)
+        const tryLoad = async (url) => {
+          const mesh = new SplatMesh({ url })
+          mesh.rotation.x = Math.PI
+          splatRef.current = mesh
+          root.add(mesh)
+        }
         try {
-          await tryLoad('./scene.ply')
+          await tryLoad('./scene.sog')
           setLoading(false)
         } catch {
-          setError('场景加载失败')
-          setLoading(false)
+          try {
+            await tryLoad('./scene.ply')
+            setLoading(false)
+          } catch {
+            setError('场景加载失败')
+            setLoading(false)
+          }
         }
-      }
-    })()
+      })()
 
-    ;(async () => {
-      try {
-        const res = await fetch('./pois.json')
-        if (res.ok) {
-          const data = await res.json()
-          setPois(Array.isArray(data) ? data : [])
-        }
-      } catch {}
-    })()
-
-    ;(async () => {
-      try {
-        const res = await fetch('./cameras.json')
-        if (res.ok) {
-          const data = await res.json()
-          setCameras(Array.isArray(data) ? data : [])
-        }
-      } catch {}
-    })()
-
-    ;(async () => {
-      if (navigator.xr && typeof navigator.xr.isSessionSupported === 'function') {
+      ; (async () => {
         try {
-          const supported = await navigator.xr.isSessionSupported('immersive-ar')
-          setArSupported(!!supported)
-        } catch {
-          setArSupported(false)
+          const res = await fetch('./pois.json')
+          if (res.ok) {
+            const data = await res.json()
+            setPois(Array.isArray(data) ? data : [])
+          }
+        } catch { }
+      })()
+
+      ; (async () => {
+        try {
+          const res = await fetch('./cameras.json')
+          if (res.ok) {
+            const data = await res.json()
+            setCameras(Array.isArray(data) ? data : [])
+          }
+        } catch { }
+      })()
+
+      ; (async () => {
+        if (navigator.xr && typeof navigator.xr.isSessionSupported === 'function') {
+          try {
+            const supported = await navigator.xr.isSessionSupported('immersive-ar')
+            setArSupported(!!supported)
+          } catch {
+            setArSupported(false)
+          }
         }
-      }
-    })()
+      })()
 
     return () => {
       stopped = true
@@ -349,7 +349,7 @@ function SplatViewer() {
         label?.remove()
       })
       poiLabelsRef.current = []
-      
+
       window.removeEventListener('resize', onResize)
       window.removeEventListener('orientationchange', onOrientation)
       if (window.visualViewport) window.visualViewport.removeEventListener('resize', onVVResize)
@@ -372,14 +372,14 @@ function SplatViewer() {
     const handleClick = () => {
       // 动画过程中禁止点击
       if (isAnimatingRef.current) return
-      
+
       if (!showPoiIcons || !poiObjectsRef.current.length) return
-      
+
       const camera = cameraRef.current
       if (!camera) return
-      
+
       raycasterRef.current.setFromCamera(pointerRef.current, camera)
-      
+
       const allIconMeshes = []
       poiObjectsRef.current.forEach(group => {
         group.traverse((child) => {
@@ -389,7 +389,7 @@ function SplatViewer() {
           }
         })
       })
-      
+
       const intersects = raycasterRef.current.intersectObjects(allIconMeshes, false)
       if (intersects.length > 0) {
         const poi = intersects[0].object.userData.poi
@@ -399,9 +399,9 @@ function SplatViewer() {
         }
       }
     }
-    
+
     renderer.domElement.addEventListener('click', handleClick)
-    
+
     return () => {
       renderer.domElement.removeEventListener('click', handleClick)
     }
@@ -412,7 +412,7 @@ function SplatViewer() {
   useEffect(() => {
     // 等待场景加载完成
     if (!sceneRef.current || loading || !containerRef.current) return
-    
+
     // 清理旧的 POI 对象
     poiObjectsRef.current.forEach((o) => {
       sceneRef.current?.remove(o)
@@ -424,25 +424,25 @@ function SplatViewer() {
       })
     })
     poiObjectsRef.current = []
-    
+
     // 清理旧的 HTML 标签
     poiLabelsRef.current.forEach((label) => {
       label?.remove()
     })
     poiLabelsRef.current = []
-    
-    if (!showPoiIcons || pois.length === 0) return 
-    
+
+    if (!showPoiIcons || pois.length === 0) return
+
     const poiYOffset = -1.5  // POI 向下偏移量
-    
+
     console.log('Creating POIs:', pois.length)
-    
+
     pois.forEach((p) => {
       const poiGroup = new THREE.Group()
-      
+
       // 底座圆盘
       const baseGeometry = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16)
-      const baseMaterial = new THREE.MeshBasicMaterial({ 
+      const baseMaterial = new THREE.MeshBasicMaterial({
         color: 0x4a90e2,
         transparent: true,
         opacity: 0.8,
@@ -451,10 +451,10 @@ function SplatViewer() {
       const baseMesh = new THREE.Mesh(baseGeometry, baseMaterial)
       baseMesh.position.y = 0.05
       poiGroup.add(baseMesh)
-      
+
       // 锥形指示器
       const coneGeometry = new THREE.ConeGeometry(0.15, 0.4, 8)
-      const coneMaterial = new THREE.MeshBasicMaterial({ 
+      const coneMaterial = new THREE.MeshBasicMaterial({
         color: 0x4a90e2,
         transparent: true,
         opacity: 0.9,
@@ -463,10 +463,10 @@ function SplatViewer() {
       const coneMesh = new THREE.Mesh(coneGeometry, coneMaterial)
       coneMesh.position.y = 0.3
       poiGroup.add(coneMesh)
-      
+
       // 发光环
       const glowGeometry = new THREE.RingGeometry(0.35, 0.5, 16)
-      const glowMaterial = new THREE.MeshBasicMaterial({ 
+      const glowMaterial = new THREE.MeshBasicMaterial({
         color: 0x4a90e2,
         transparent: true,
         opacity: 0.3,
@@ -477,19 +477,19 @@ function SplatViewer() {
       glowMesh.rotation.x = -Math.PI / 2
       glowMesh.position.y = 0.01
       poiGroup.add(glowMesh)
-      
+
       const [x, y, z] = p.position || [0, 0, 0]
       poiGroup.position.set(x, y + poiYOffset, z)
-      
+
       poiGroup.userData.poi = p
       poiGroup.userData.baseMesh = baseMesh
       poiGroup.userData.coneMesh = coneMesh
       poiGroup.userData.glowMesh = glowMesh
       poiGroup.userData.originalScale = 1
-      
+
       poiObjectsRef.current.push(poiGroup)
       sceneRef.current.add(poiGroup)
-      
+
       // 创建 HTML 标签
       const label = document.createElement('div')
       label.className = 'poi-label'
@@ -511,7 +511,7 @@ function SplatViewer() {
       `
       containerRef.current.appendChild(label)
       poiLabelsRef.current.push(label)
-      
+
       console.log('Added POI:', p.name, 'at', x, y + poiYOffset, z)
     })
   }, [pois, showPoiIcons, loading])
@@ -521,7 +521,7 @@ function SplatViewer() {
     poiObjectsRef.current.forEach((group) => {
       const isActive = activePoi?.id === group.userData.poi.id
       const color = isActive ? 0xff6b35 : 0x4a90e2
-      
+
       if (group.userData.baseMesh) {
         group.userData.baseMesh.material.color.setHex(color)
       }
@@ -537,12 +537,12 @@ function SplatViewer() {
   // 处理初始相机
   useEffect(() => {
     if (loading || cameras.length === 0) return
-    
+
     const initialCamera = cameras.find(c => c.isInitial)
     if (initialCamera && !activePoiRef.current) {
       const timer = setTimeout(() => {
         setActiveCamera(initialCamera)
-        moveToCamera(initialCamera, true) 
+        moveToCamera(initialCamera, true)
       }, 500)
       return () => clearTimeout(timer)
     }
@@ -564,7 +564,7 @@ function SplatViewer() {
       renderer.xr.enabled = true
       await renderer.xr.setSession(session)
       setArActive(true)
-    } catch {}
+    } catch { }
   }
 
   const stopAR = async () => {
@@ -574,27 +574,27 @@ function SplatViewer() {
     }
     try {
       await rendererRef.current.xr.getSession().end()
-    } catch {}
+    } catch { }
     setArActive(false)
   }
 
   const startOrientation = async () => {
     if (orientationActive) return
-    
+
     const camera = cameraRef.current
     const controls = controlsRef.current
     if (!camera || !controls) return
-    
+
     // iOS 13+ 需要请求权限，必须由用户手势触发
     // 需要同时请求 DeviceMotionEvent 和 DeviceOrientationEvent 权限
-    
+
     // 请求 DeviceMotionEvent 权限
     if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
       try {
         console.log('请求 iOS DeviceMotionEvent 权限...')
         const motionPermission = await DeviceMotionEvent.requestPermission()
         console.log('DeviceMotionEvent 权限结果:', motionPermission)
-        
+
         if (motionPermission !== 'granted') {
           setToast('❌ 需要允许访问"动态与方向"权限')
           setTimeout(() => setToast(''), 5000)
@@ -607,14 +607,14 @@ function SplatViewer() {
         return
       }
     }
-    
+
     // 请求 DeviceOrientationEvent 权限
     if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
       try {
         console.log('请求 iOS DeviceOrientationEvent 权限...')
         const orientationPermission = await DeviceOrientationEvent.requestPermission()
         console.log('DeviceOrientationEvent 权限结果:', orientationPermission)
-        
+
         if (orientationPermission !== 'granted') {
           setToast('❌ 需要允许访问"方向"权限')
           setTimeout(() => setToast(''), 5000)
@@ -627,7 +627,7 @@ function SplatViewer() {
         return
       }
     }
-    
+
     // 检测是否支持陀螺仪
     let hasGyro = false
     const testHandler = (e) => {
@@ -635,96 +635,72 @@ function SplatViewer() {
         hasGyro = true
       }
     }
-    
+
     window.addEventListener('deviceorientation', testHandler)
-    
+
     // 等待一小段时间检测
     await new Promise(resolve => setTimeout(resolve, 500))
     window.removeEventListener('deviceorientation', testHandler)
-    
+
     if (!hasGyro) {
       setToast('⚠️ 未检测到陀螺仪数据，请确保设备支持')
       setTimeout(() => setToast(''), 4000)
       // 继续尝试，有些设备可能需要更长时间
     }
-    
+
     // 禁用 OrbitControls
     controls.enabled = false
-    
+
     // 保存初始相机位置
     const initialPosition = camera.position.clone()
-    
+
     // 初始方向偏移（用于校准）
     let initialAlpha = null
+
+const handler = (event) => {
+  if (event.alpha === null) return
+  
+  let alpha = event.alpha || 0
+  let beta = event.beta || 0
+  let gamma = event.gamma || 0
+  
+  // --- 1. Alpha (Yaw) ---
+  if (initialAlpha === null) {
+    initialAlpha = alpha
+  }
+  let relativeAlpha = alpha - initialAlpha
+  let yaw = THREE.MathUtils.degToRad(relativeAlpha)
+  
+  // --- 2. Pitch (Gamma) & Roll (Beta) ---
+  let pitch = 0
+  let roll = 0
+
+  if (gamma > 0) {
+    // 情况：249, -168, 68 (朝上看)
+    pitch = THREE.MathUtils.degToRad(90 - gamma)
     
-    const handler = (event) => {
-      if (event.alpha === null) return
-      
-      // 获取设备方向数据
-      let alpha = event.alpha || 0  // Z轴旋转 (0-360)，指南针方向
-      let beta = event.beta || 0    // X轴旋转 (-180 to 180)，手机竖起程度
-      let gamma = event.gamma || 0  // Y轴旋转 (-90 to 90)，上下看
-      
-      // 记录初始 alpha 用于校准左右方向
-      if (initialAlpha === null) {
-        initialAlpha = alpha
-      }
-      
-      // 相对于初始方向的偏移
-      const relativeAlpha = alpha - initialAlpha
-      
-      // 用户描述的坐标系（横屏向左，alpha=90, beta=0, gamma=-90 时平视前方）：
-      // 
-      // 左右看 (yaw)：
-      //   alpha = 90 → 平视前方 (yaw = 0)
-      //   alpha 减少 → 向右看 (yaw 增加)
-      //   所以 yaw = -(alpha - 90) = 90 - alpha
-      //   用相对值：yaw = -relativeAlpha
-      //
-      // 上下看 (pitch)：
-      //   gamma = -90 → 平视 (pitch = 0)
-      //   gamma 从 -90 减少到 0 → 往上看 (pitch 从 0 到 +90°)
-      //   往下看时 gamma 从 -90 跳变到 +90，然后减少到 0 → 纯往下是 gamma=0（从+90侧）
-      //   
-      //   简化处理：
-      //   gamma = -90 → pitch = 0
-      //   gamma = 0 (从-90减少来) → pitch = +90° (看天)
-      //   gamma = 0 (从+90减少来) → pitch = -90° (看地)
-      //   gamma = +90 → pitch = 0 (刚跳变，即将往下)
-      //
-      // beta：手机竖起程度，0 或 ±180 是横屏，90 是竖屏
-      //   暂不处理，保持横屏使用
-      
-      // 计算 pitch（上下看）
-      let pitch = 0
-      if (gamma <= 0) {
-        // gamma: -90 到 0，对应平视到看天
-        // gamma = -90 → pitch = 0
-        // gamma = 0 → pitch = +90° (π/2)
-        pitch = (gamma + 90) * (Math.PI / 180)
-      } else {
-        // gamma: +90 到 0（往下看）
-        // gamma = +90 → pitch = 0（刚从 -90 跳过来）
-        // gamma = 0 → pitch = -90° (-π/2)（纯往下看）
-        pitch = (gamma - 90) * (Math.PI / 180)
-      }
-      
-      // 计算 yaw（左右看）
-      // relativeAlpha = 0 时平视，减少时向右看
-      // alpha 减少 → yaw 应该增加（向右）
-      const yaw = -THREE.MathUtils.degToRad(relativeAlpha)
-      
-      // roll 保持 0，画面水平
-      const roll = 0
-      
-      // 使用 Euler 角，YXZ 顺序
-      const euler = new THREE.Euler(pitch, yaw, roll, 'YXZ')
-      camera.quaternion.setFromEuler(euler)
-      
-      // 保持相机位置不变
-      camera.position.copy(initialPosition)
-    }
+    // 关键修正：既然你说此时 Roll 是对的，我们观察此时 Beta 是 -168
+    // 我们需要把 Beta 映射回正常的平滑区间
+    // 此时 Yaw 已经由传感器跳变处理了一部分，我们根据需要补齐 180 度
+    yaw += Math.PI
     
+    // 既然此时 Roll 对了，直接使用 -betaRad (或根据测试取反)
+    // 注意：-168度其实相当于 12度 倒过来。
+    roll = THREE.MathUtils.degToRad(beta) + Math.PI
+    
+  } else {
+    // 情况：96, -18, -82 (朝下看)
+    pitch = THREE.MathUtils.degToRad(-(gamma + 90))
+    
+    // 你说此时 Roll 是反的，所以我们给 betaRad 加负号
+    roll = -THREE.MathUtils.degToRad(beta)
+  }
+
+  // --- 3. 应用 ---
+  // 使用 YXZ 顺序
+  const euler = new THREE.Euler(pitch, yaw, roll, 'YXZ')
+  camera.quaternion.setFromEuler(euler)
+}
     window.addEventListener('deviceorientation', handler, true)
     orientationHandlerRef.current = handler
     setOrientationActive(true)
@@ -738,7 +714,7 @@ function SplatViewer() {
       orientationHandlerRef.current = null
     }
     setOrientationActive(false)
-    
+
     // 恢复 OrbitControls
     if (controlsRef.current) {
       controlsRef.current.enabled = true
@@ -779,7 +755,7 @@ function SplatViewer() {
             {toast}
           </div>
         )}
-        
+
         {loading && (
           <div style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
             加载中…
@@ -809,23 +785,23 @@ function SplatViewer() {
               padding: 30
             }}
           >
-            <div style={{ 
-              fontSize: 60, 
+            <div style={{
+              fontSize: 60,
               marginBottom: 20,
               animation: 'rotate90 1.5s ease-in-out infinite'
             }}>
               📱
             </div>
-            <div style={{ 
-              fontWeight: 'bold', 
-              fontSize: 20, 
+            <div style={{
+              fontWeight: 'bold',
+              fontSize: 20,
               marginBottom: 10,
               textAlign: 'center'
             }}>
               请旋转手机到横屏模式
             </div>
-            <div style={{ 
-              opacity: 0.7, 
+            <div style={{
+              opacity: 0.7,
               fontSize: 14,
               textAlign: 'center'
             }}>
@@ -876,7 +852,7 @@ function SplatViewer() {
               {showPoiIcons ? '隐藏标记' : '显示标记'}
             </button>
           </div>
-          
+
           <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8, borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: 10 }}>镜头位置</div>
           <div style={{ flex: 1, overflowY: 'auto', marginBottom: 10 }}>
             {cameras.map((cam) => (
@@ -905,7 +881,7 @@ function SplatViewer() {
               </div>
             ))}
           </div>
-          
+
           {arSupported && !arActive && (
             <button onClick={startAR} style={{ padding: '12px 14px', fontSize: 14, background: 'rgba(74, 144, 226, 0.8)', border: 'none', borderRadius: 6, color: '#fff', cursor: 'pointer' }}>
               启用 AR
@@ -916,17 +892,17 @@ function SplatViewer() {
               退出 AR
             </button>
           )}
-          
+
           {!orientationActive ? (
-            <button 
-              onClick={startOrientation} 
-              style={{ 
-                padding: '12px 14px', 
-                fontSize: 14, 
-                background: 'rgba(74, 144, 226, 0.8)', 
-                border: 'none', 
-                borderRadius: 6, 
-                color: '#fff', 
+            <button
+              onClick={startOrientation}
+              style={{
+                padding: '12px 14px',
+                fontSize: 14,
+                background: 'rgba(74, 144, 226, 0.8)',
+                border: 'none',
+                borderRadius: 6,
+                color: '#fff',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -937,22 +913,22 @@ function SplatViewer() {
               <span>📱</span> 启用陀螺仪
             </button>
           ) : (
-            <button 
-              onClick={stopOrientation} 
-              style={{ 
-                padding: '12px 14px', 
-                fontSize: 14, 
-                background: 'rgba(255, 107, 53, 0.8)', 
-                border: 'none', 
-                borderRadius: 6, 
-                color: '#fff', 
-                cursor: 'pointer' 
+            <button
+              onClick={stopOrientation}
+              style={{
+                padding: '12px 14px',
+                fontSize: 14,
+                background: 'rgba(255, 107, 53, 0.8)',
+                border: 'none',
+                borderRadius: 6,
+                color: '#fff',
+                cursor: 'pointer'
               }}
             >
               退出陀螺仪
             </button>
           )}
-          
+
           <div style={{ fontSize: 12, opacity: 0.7, marginTop: 'auto', textAlign: 'center' }}>
             {orientationActive ? '🔄 陀螺仪已启用' : (activeCamera ? `📍 ${activeCamera.name}` : '选择镜头位置')}
           </div>
