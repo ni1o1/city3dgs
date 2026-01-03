@@ -193,7 +193,7 @@ function SplatViewer() {
         const { x, y } = joystickRef.current
         const speed = 0.3 // 移动速度
 
-        // 获取相机的前方方向（投影到XZ平面）
+        // 获取相机的前方方向
         const forward = new THREE.Vector3()
         camera.getWorldDirection(forward)
         forward.y = 0
@@ -918,8 +918,8 @@ const handler = (event) => {
           <Joystick
             size={150}
             sticky={false}
-            baseColor="rgba(255, 255, 255, 0.3)"
-            stickColor="rgba(255, 255, 255, 0.8)"
+            baseColor="rgba(255, 255, 255, 0.1)"
+            stickColor="rgba(255, 255, 255, 0.4)"
             move={(e) => {
               joystickRef.current = {
                 x: e.x,
